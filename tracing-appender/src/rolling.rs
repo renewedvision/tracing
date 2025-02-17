@@ -520,7 +520,7 @@ impl Rotation {
     }
 
     fn round_ordinal_to_week(date: Date) -> u16 {
-        let ordinal = date.ordinal() as u16;
+        let ordinal = date.ordinal();
         if ordinal <= 7 {
             1
         } else {
