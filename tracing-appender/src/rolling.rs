@@ -611,9 +611,15 @@ impl Inner {
     }
 
     pub(crate) fn join_date(&self, date: &OffsetDateTime) -> String {
-        let date = date
-            .format(&self.date_format)
-            .expect("Unable to format OffsetDateTime; this is a bug in tracing-appender");
+        let date = if let Rotation::NEVER = self.rotation {
+            date.format(&self.date_format)
+                .expect("Unable to format OffsetDateTime; this is a bug in tracing-appender")
+        } else {
+            self.rotation
+                .round_date(*date)
+                .format(&self.date_format)
+                .expect("Unable to format OffsetDateTime; this is a bug in tracing-appender")
+        };
 
         match (
             &self.rotation,
@@ -860,6 +866,77 @@ mod test {
         let now = OffsetDateTime::now_utc();
         let next = Rotation::NEVER.next_date(&now);
         assert!(next.is_none());
+    }
+
+    #[test]
+    fn test_join_date() {
+        struct TestCase {
+            expected: &'static str,
+            rotation: Rotation,
+            prefix: Option<&'static str>,
+            suffix: Option<&'static str>,
+            now: OffsetDateTime,
+        }
+
+        let format = format_description::parse(
+            "[year]-[month]-[day] [hour]:[minute]:[second] [offset_hour \
+         sign:mandatory]:[offset_minute]:[offset_second]",
+        )
+        .unwrap();
+        let directory = tempfile::tempdir().expect("failed to create tempdir");
+
+        let test_cases = vec![
+            TestCase {
+                expected: "my_prefix.2025-02-11.log",
+                rotation: Rotation::WEEKLY,
+                prefix: Some("my_prefix"),
+                suffix: Some("log"),
+                now: OffsetDateTime::parse("2025-02-17 10:01:00 +00:00:00", &format).unwrap(),
+            },
+            TestCase {
+                expected: "my_prefix.2025-02-17.log",
+                rotation: Rotation::DAILY,
+                prefix: Some("my_prefix"),
+                suffix: Some("log"),
+                now: OffsetDateTime::parse("2025-02-17 10:01:00 +00:00:00", &format).unwrap(),
+            },
+            TestCase {
+                expected: "my_prefix.2025-02-17-10.log",
+                rotation: Rotation::HOURLY,
+                prefix: Some("my_prefix"),
+                suffix: Some("log"),
+                now: OffsetDateTime::parse("2025-02-17 10:01:00 +00:00:00", &format).unwrap(),
+            },
+            TestCase {
+                expected: "my_prefix.2025-02-17-10-01.log",
+                rotation: Rotation::MINUTELY,
+                prefix: Some("my_prefix"),
+                suffix: Some("log"),
+                now: OffsetDateTime::parse("2025-02-17 10:01:00 +00:00:00", &format).unwrap(),
+            },
+            TestCase {
+                expected: "my_prefix.log",
+                rotation: Rotation::NEVER,
+                prefix: Some("my_prefix"),
+                suffix: Some("log"),
+                now: OffsetDateTime::parse("2025-02-17 10:01:00 +00:00:00", &format).unwrap(),
+            },
+        ];
+
+        for test_case in test_cases {
+            let (inner, _) = Inner::new(
+                test_case.now,
+                test_case.rotation.clone(),
+                directory.path(),
+                test_case.prefix.map(ToString::to_string),
+                test_case.suffix.map(ToString::to_string),
+                None,
+            )
+            .unwrap();
+            let path = inner.join_date(&test_case.now);
+
+            assert_eq!(path, test_case.expected);
+        }
     }
 
     #[test]
