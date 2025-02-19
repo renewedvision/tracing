@@ -370,6 +370,42 @@ pub fn daily(
     RollingFileAppender::new(Rotation::DAILY, directory, file_name_prefix)
 }
 
+/// Creates a weekly-rotating file appender.
+///
+/// The appender returned by `rolling::weekly` can be used with `non_blocking` to create
+/// a non-blocking, weekly file appender.
+///
+/// A `RollingFileAppender` has a fixed rotation whose frequency is
+/// defined by [`Rotation`][self::Rotation]. The `directory` and
+/// `file_name_prefix` arguments determine the location and file name's _prefix_
+/// of the log file. `RollingFileAppender` automatically appends the current date in UTC.
+///
+/// # Examples
+///
+/// ``` rust
+/// # #[clippy::allow(needless_doctest_main)]
+/// fn main () {
+/// # fn doc() {
+///     let appender = tracing_appender::rolling::weekly("/some/path", "rolling.log");
+///     let (non_blocking_appender, _guard) = tracing_appender::non_blocking(appender);
+///
+///     let subscriber = tracing_subscriber::fmt().with_writer(non_blocking_appender);
+///
+///     tracing::subscriber::with_default(subscriber.finish(), || {
+///         tracing::event!(tracing::Level::INFO, "Hello");
+///     });
+/// # }
+/// }
+/// ```
+///
+/// This will result in a log file located at `/some/path/rolling.log.yyyy-MM-dd-HH`.
+pub fn weekly(
+    directory: impl AsRef<Path>,
+    file_name_prefix: impl AsRef<Path>,
+) -> RollingFileAppender {
+    RollingFileAppender::new(Rotation::WEEKLY, directory, file_name_prefix)
+}
+
 /// Creates a non-rolling file appender.
 ///
 /// The appender returned by `rolling::never` can be used with `non_blocking` to create
